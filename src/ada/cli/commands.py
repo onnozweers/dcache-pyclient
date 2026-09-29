@@ -6,7 +6,7 @@ from __future__ import annotations
 import os
 
 from ada.client import AdaClient
-from ada.exceptions import AdaAPIError, AdaValidationError
+from ada.exceptions import AdaAPIError, AdaNotFoundError, AdaValidationError
 from ada.cli.formatters import format_longlist, format_quota, format_space, format_space_groups
 
 
@@ -132,6 +132,54 @@ def unstage(parsed_args) -> None:
         print(f"Targets: {len(result.targets)} file(s)")
 
 
+def setlabel(parsed_args) -> None:
+    """Attach a label to a file."""
+
+    with __get_client__(parsed_args) as client:
+        result = client.set_label(parsed_args.path, parsed_args.label)
+        print(result)
+
+
+def rmlabel(parsed_args) -> None:
+    """Remove one label, or all labels, from a file."""
+
+    if not parsed_args.label and not parsed_args.all:
+        raise AdaValidationError("Provide a LABEL or --all.")
+
+    with __get_client__(parsed_args) as client:
+        result = client.remove_label(
+            parsed_args.path,
+            label=parsed_args.label or "",
+            all_labels=parsed_args.all,
+        )
+        print(result)
+
+
+def lslabel(parsed_args) -> None:
+    """List labels of a file, or check whether it has a specific label."""
+
+    with __get_client__(parsed_args) as client:
+        if parsed_args.label:
+            result = client.list_labels(parsed_args.path, label=parsed_args.label)
+            if not result:
+                raise AdaNotFoundError(
+                    f"File '{parsed_args.path}' does not have label '{parsed_args.label}'."
+                )
+            print(result[0])
+        else:
+            for label in sorted(client.list_labels(parsed_args.path)):
+                print(label)
+
+
+def findlabel(parsed_args) -> None:
+    """Find files in a directory whose labels match a regex pattern."""
+
+    with __get_client__(parsed_args) as client:
+        results = client.find_label(
+            parsed_args.path, parsed_args.regex, recursive=parsed_args.recursive
+        )
+        for path, labels in results:
+            print(f"{path}\t{','.join(labels)}")
 def space(parsed_args) -> None:
     """Show pool group names, space usage for a pool group, or (given a
     path) space usage for the pool group(s) that serve that path."""
