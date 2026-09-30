@@ -4,6 +4,8 @@ ADA CLI commands
 from __future__ import annotations
 
 import os
+import sys
+from pathlib import Path
 
 from ada.client import AdaClient
 from ada.exceptions import AdaAPIError, AdaNotFoundError, AdaValidationError
@@ -132,6 +134,80 @@ def unstage(parsed_args) -> None:
         print(f"Targets: {len(result.targets)} file(s)")
 
 
+def setxattr(parsed_args) -> None:
+    """Set extended attributes on a file, read from a file or stdin."""
+
+    if parsed_args.attributes_file is None:
+        print(
+            "No file containing attributes specified. Will read attributes "
+            "from stdin. Terminate with ctrl+d.",
+            file=sys.stderr,
+        )
+        content = sys.stdin.read()
+    else:
+        attr_path = Path(parsed_args.attributes_file)
+        if not attr_path.is_file():
+            raise AdaValidationError(
+                f"Can't read attributes from file '{parsed_args.attributes_file}'. "
+                "Does it exist?"
+            )
+        content = attr_path.read_text(encoding="utf-8")
+
+    with __get_client__(parsed_args) as client:
+        result = client.set_xattr(parsed_args.path, content)
+        print(result)
+
+
+def rmxattr(parsed_args) -> None:
+    """Remove one extended attribute, or all, from a file."""
+
+    if not parsed_args.key and not parsed_args.all:
+        raise AdaValidationError("Provide a KEY or --all.")
+
+    with __get_client__(parsed_args) as client:
+        result = client.remove_xattr(
+            parsed_args.path,
+            key=parsed_args.key or "",
+            all_keys=parsed_args.all,
+        )
+        print(result)
+
+
+def lsxattr(parsed_args) -> None:
+    """List extended attributes of a file, or check whether it has a specific key."""
+
+    with __get_client__(parsed_args) as client:
+        if parsed_args.key:
+            result = client.list_xattr(parsed_args.path, key=parsed_args.key)
+            if not result:
+                raise AdaNotFoundError(
+                    f"File '{parsed_args.path}' does not have attribute '{parsed_args.key}'."
+                )
+            print(f"{parsed_args.key}={result[parsed_args.key]}")
+        else:
+            for key, value in sorted(client.list_xattr(parsed_args.path).items()):
+                print(f"{key}={value}")
+
+
+def findxattr(parsed_args) -> None:
+    """Find files in a directory whose extended attributes match a regex."""
+
+    if not parsed_args.key and not parsed_args.all:
+        raise AdaValidationError("Provide a KEY or --all.")
+
+    with __get_client__(parsed_args) as client:
+        results = client.find_xattr(
+            parsed_args.path,
+            key=parsed_args.key or "",
+            regex=parsed_args.regex,
+            recursive=parsed_args.recursive,
+            all_keys=parsed_args.all,
+        )
+        for path, attrs in results:
+            attr_str = ", ".join(f"{k}={v}" for k, v in attrs.items())
+            print(f"{path}\t{attr_str}")
+
+            
 def setlabel(parsed_args) -> None:
     """Attach a label to a file."""
 
@@ -180,6 +256,8 @@ def findlabel(parsed_args) -> None:
         )
         for path, labels in results:
             print(f"{path}\t{','.join(labels)}")
+
+
 def space(parsed_args) -> None:
     """Show pool group names, space usage for a pool group, or (given a
     path) space usage for the pool group(s) that serve that path."""
