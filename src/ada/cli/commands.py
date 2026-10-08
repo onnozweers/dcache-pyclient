@@ -7,6 +7,7 @@ import os
 import sys
 from pathlib import Path
 
+from ada.auth import check_ip_caveat
 from ada.client import AdaClient
 from ada.exceptions import AdaAPIError, AdaNotFoundError, AdaValidationError
 from ada.cli.formatters import format_longlist, format_quota, format_space, format_space_groups, format_stat
@@ -141,6 +142,40 @@ def unstage(parsed_args) -> None:
         if result.request_url:
             print(f"Request URL: {result.request_url}")
         print(f"Targets: {len(result.targets)} file(s)")
+
+
+def viewtoken(parsed_args) -> None:
+    """Decode and display the properties of the current token.
+
+    Purely for inspection: an expired token is shown as such, but
+    doesn't turn into an error, since viewing a token's properties
+    doesn't require it to still be usable.
+    """
+
+    with __get_client__(parsed_args) as client:
+
+        decoded = client.view_token()
+        _print_token_properties(decoded)
+
+        if not parsed_args.minimal:
+            # Source of token
+            source = getattr(client.auth, "source", None)
+            if source:
+                print(f"Token source: {source}")
+
+            # Status of token
+            print(f"Status: {client.auth.expiry_status()}")
+
+            # IP caveats in macaroon
+            if "ip" in decoded:
+                print(f"IP caveat: {check_ip_caveat(decoded['ip'])}")
+            if "ip" not in decoded:
+                print(f"IP caveat is empty. Warning: use IP caveats in a macaroon to reduce security risks.")
+
+
+def _print_token_properties(properties: dict) -> None:
+    for key, value in properties.items():
+        print(f"  {key}: {value}")
 
 
 def setxattr(parsed_args) -> None:

@@ -16,6 +16,7 @@ from ada.cli.commands import (
     checksum,
     stage,
     unstage,
+    viewtoken,
     setxattr,
     rmxattr,
     lsxattr,
@@ -297,6 +298,18 @@ def parse_args() -> argparse.ArgumentParser:
         type=str,
         help='File containing list of files or directories to unstage.'
     )
+
+    # viewtoken
+    parser_viewtoken = subparsers.add_parser(
+        'viewtoken',
+        help="Decode and show the properties of the current token."
+    )
+    parser_viewtoken.set_defaults(func=viewtoken)
+    parser_viewtoken.add_argument(
+        "--minimal",
+        help="Show only minimal information: skip the token source, "
+             "and the macaroon IP caveat check.",
+        action="store_true")
 
     # setxattr
     parser_setxattr = subparsers.add_parser(
