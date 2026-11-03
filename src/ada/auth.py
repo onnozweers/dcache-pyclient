@@ -80,6 +80,14 @@ class AuthProvider(ABC):
             "Token expiry is not applicable for this authentication method."
         )
 
+    def ip_caveat_status(self) -> Optional[str]:
+        """Describe the token's IP caveat, informationally.
+
+        Returns None when IP caveats don't apply, e.g. for OIDC tokens,
+        which never have them.
+        """
+        return None
+
     def validate(self, command: Optional[str] = None) -> None:
         """Validate credentials before use. Override in subclasses."""
 
@@ -122,6 +130,12 @@ class TokenAuth(AuthProvider):
         else:
             exp_unix = extract_macaroon_expiry(decode_macaroon_raw(self.token))
         return describe_expiry(exp_unix)
+
+    def ip_caveat_status(self) -> Optional[str]:
+        # Only macaroons can have IP caveats; OIDC tokens never do
+        if is_jwt(self.token):
+            return None
+        return check_ip_caveat(decode_macaroon(self.token).get("ip", ""))
 
 
 class TokenFileAuth(TokenAuth):
@@ -659,7 +673,7 @@ def check_ip_caveat(ip_caveat: str) -> str:
         informational.
     """
     if not ip_caveat.strip():
-        return "IP caveat is empty. Warning: use IP caveats in a macaroon to reduce security risks."
+        return "empty. Warning: use IP caveats in a macaroon to reduce security risks."
 
     try:
         networks = [
